@@ -18,7 +18,8 @@
 #define BLYNK_FIRMWARE_VERSION        "0.1.1"
 //#define BLYNK_PRINT Serial
 #define APP_DEBUG                  // desligar
-#define USE_ESP32_DEV_MODULE
+// #define USE_ESP32_DEV_MODULE
+// #define a custom board in Settings.h (LED no pino GPIO 2)
 #include "BlynkEdgent.h"
 
 // ----------------------------------- Watchdog ------------------------------------------
@@ -30,6 +31,9 @@
 //const int IN5 = 26;     
 const int nivelSensor = 34;   // sensor de nivel analógico
 int nivel = 0; 
+
+// ------ protótipo de funções ------
+void sensorNivel(void);
 
 void Main2(){
   rtc_wdt_feed();                                 // reseta o temporizador do Watchdog
