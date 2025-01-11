@@ -41,6 +41,16 @@ const char* ntpServer = "br.pool.ntp.org";      // "pool.ntp.org"; "a.st1.ntp.br
 const long  gmtOffset_sec = -10800;             // -14400; Fuso horário em segundos (-03h = -10800 seg)
 const int   daylightOffset_sec = 0;             // ajuste em segundos do horario de verão
 
+//-------------------------------------  Sensor interno de temepratura --------------------------------
+#ifdef __cplusplus
+extern "C" {
+#endif
+uint8_t temprature_sens_read();
+#ifdef __cplusplus
+}
+#endif
+uint8_t temprature_sens_read();
+
 // ------ protótipo de funções ------
 void sensorNivel(void);
 void NTPserverTime(void);
@@ -49,6 +59,11 @@ void Main2(){
   rtc_wdt_feed();                                 // reseta o temporizador do Watchdog;
   NTPserverTime();                                // busca e envia a data/hora
   sensorNivel();                                  // busca e envia a informação de nível
+
+  long rssi = WiFi.RSSI();
+  Serial.print("RF Signal Level: ");
+  Serial.println(rssi);                         // Escreve o indicador de nível de sinal Wi-Fi
+  Blynk.virtualWrite(V3, rssi);                // Envia ao Blynk informação RF Signal Level
 }
 
 void sensorNivel() {  
@@ -92,6 +107,13 @@ void NTPserverTime(){          // Horário recebido da internet
       Serial.print("Data/hora do sistema:  ");
       Serial.println(RTC_Time);
       Blynk.virtualWrite(V1, RTC_Time);                             // envia ao Blynk a informação de data, hora e minuto do RTC
+    
+      int temp=((temprature_sens_read() - 32) / 1.8)-7;
+      Serial.print("Temperatura: ");
+      Serial.print(temp);
+      Serial.println(" C");
+      Blynk.virtualWrite(V2, temp);
+    
     }
 }
 
