@@ -194,9 +194,9 @@ void sendLogReset(){
     Serial.print("Servidor IoT Blynk conectado e rodando com sucesso!");
     esp_reset_reason_t r = esp_reset_reason();
     Serial.printf("\r\nReset reason %i - %s\r\n", r, resetReasonName(r));
+    delay(1000);                   // delay para verificar no monitor serial
     Blynk.virtualWrite(V45, currentDay, "/", currentMonth, " ", currentHour, ":", currentMin, "",resetReasonName(r), " ",counterRST);
     sendBlynk = false;
-    delay(3000);                   // delay para verificar no monitor serial
   }
 }
 
