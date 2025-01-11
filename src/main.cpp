@@ -18,7 +18,7 @@
 //#define BLYNK_TEMPLATE_NAME "Pivo Teste"
 #define BLYNK_TEMPLATE_ID "TMPLaM1hhk7O"
 #define BLYNK_TEMPLATE_NAME "Pivo"
-#define BLYNK_FIRMWARE_VERSION        "0.1.2"
+#define BLYNK_FIRMWARE_VERSION        "0.1.3"
 
 //#define BLYNK_PRINT Serial
 //#define APP_DEBUG
@@ -26,9 +26,46 @@
 // #define a custom board in Settings.h (LED no pino GPIO 2)
 #include "BlynkEdgent.h"
 
-// ----------------------------------- Watchdog ------------------------------------------
+int currentSec;
+int currentMin;
+int currentHour;
+int currentDay;
+int currentMonth;
+int currentYear;
+
+Preferences  preferences;                      // biblioteca para armazenamento de dados
+unsigned int  counterRST;                      // contador de reset's
+uint32_t servicoIoTState;                      // recebe a informação de BlynkState::get();
+String     StrStateBlynk;                      // string de BlynkState para mostrar em um display
+bool    sendBlynk = true;                      // usado como flag para envio ao servidor
+
+// ----------------------------------- SETUP Watchdog ------------------------------------------
 #include "soc/rtc_wdt.h"
-#define WDT_TIMEOUT   120000                      // xxxxxx milisegundos (max: 120000)
+#define WDT_TIMEOUT   120000                      // XXX miliseconds WDT
+
+// Converte razões do reset para string
+const char *resetReasonName(esp_reset_reason_t r) {
+  switch (r) {
+    case ESP_RST_UNKNOWN:   return "UNKNOWN RESET";
+    case ESP_RST_POWERON:   return "POWER ON RESET";        //Power on or RST pin toggled
+    case ESP_RST_EXT:       return "EXTERN PIN RESET";      //External pin - not applicable for ESP32
+    case ESP_RST_SW:        return "SOFTWARE REBOOT";       //esp_restart()
+    case ESP_RST_PANIC:     return "CRASH RESET";           //Exception/panic
+    case ESP_RST_INT_WDT:   return "INTERRUPT WATCHDOG";    //Interrupt watchdog (software or hardware)
+    case ESP_RST_TASK_WDT:  return "TASK WATCHDOG";         //Task watchdog
+    case ESP_RST_WDT:       return "RTC WATCHDOG";          //Other watchdog
+    case ESP_RST_DEEPSLEEP: return "SLEEP RESET";           //Reset after exiting deep sleep mode
+    case ESP_RST_BROWNOUT:  return "BROWNOUT RESET";        //Brownout reset (software or hardware)
+    case ESP_RST_SDIO:      return "RESET OVER SDIO";       //Reset over SDIO
+    default:                return "";
+  }
+}
+
+void PrintResetReason(void) {
+  esp_reset_reason_t r = esp_reset_reason();
+  Serial.printf("Reset reason:     %i - %s\r\n\r\n", r, resetReasonName(r));
+}
+// ----------------------------------- Fim Watchdog ----------------------------------------
 
 //const int IN3 = 33;         // sensor de niveis digital
 //const int IN4 = 25;
@@ -51,15 +88,46 @@ uint8_t temprature_sens_read();
 #endif
 uint8_t temprature_sens_read();
 
-// ------ protótipo de funções ------
+// ------ Protótipo de funções ------
 void sensorNivel(void);
 void NTPserverTime(void);
+void sendLogReset(void);
 
 void Main2(){
+
+    // habilitar para teste de Sofware Reboot ou RTC Watchdog
+  //if (currentSec == 59){ESP.restart();}
+  //if (currentSec == 59){int i = WDT_TIMEOUT/1000;
+  //   while(1){Serial.print("Watchdog vai atuar em... "); Serial.println (i);delay(980);i = i - 1;}}
+  
+  if ((currentHour == 5) && (currentMin == 0) && (currentSec == 0)){
+    preferences.begin  ("my-app", false);              // inicia 
+    preferences.putUInt("counterRST", 0);              // grava em Preferences/My-app/counterRST, counterRST
+    counterRST = preferences.getUInt("counterRST", 0); // Le da NVS
+    preferences.end();
+    Serial.println("A data e hora foram recalibradas no relógio interno, e o contador de RESETs foi zerado!");
+    Blynk.virtualWrite(V45, currentDay, "/", currentMonth, " ", currentHour, ":", currentMin, " Auto calibrado o Relógio");
+  }
+
   rtc_wdt_feed();                                 // reseta o temporizador do Watchdog;
   NTPserverTime();                                // busca e envia a data/hora
   sensorNivel();                                  // busca e envia a informação de nível
 
+    // ------ Integrações com o app ------
+servicoIoTState = BlynkState::get();    // requisita estado da biblioteca BlynkEdgent.h
+   switch (servicoIoTState) {
+      case 0: StrStateBlynk = "WAIT CONFIG"  ; break;
+      case 1: StrStateBlynk = "CONFIGURING"  ; break;
+      case 2: StrStateBlynk = "NET Connect"  ; break;
+      case 3: StrStateBlynk = "CLOUD Connect"; break;
+      case 4: StrStateBlynk = "RUNNING..."   ; break;
+      case 5: StrStateBlynk = "UPGRADE OTA"  ; break;
+      case 6: StrStateBlynk = "STATION Mode" ; break;
+      case 7: StrStateBlynk = "RESET Config" ; break;
+      case 8: StrStateBlynk = "ERROR !"      ; break;
+    }
+
+  // ------ Coleta e envio do nivel de RF ------
   long rssi = WiFi.RSSI();
   Serial.print("RF Signal Level: ");
   Serial.println(rssi);                           // Escreve o indicador de nível de sinal Wi-Fi
@@ -96,27 +164,40 @@ void NTPserverTime(){          // Horário recebido da internet
     Serial.println("Sincronizando com o servidor NTP...");
     Blynk.virtualWrite(V1, "Sincronizando...");                    // envia ao Blynk
     } else {                                                       // quando conectar segue...
-      int ye = timeinfo.tm_year + 1900;
-      int mo = timeinfo.tm_mon + 1;
-      int da = timeinfo.tm_mday;
+      currentYear  = timeinfo.tm_year + 1900;
+      currentMonth = timeinfo.tm_mon + 1;
+      currentDay   = timeinfo.tm_mday;
 
-      int ho = timeinfo.tm_hour;
-      int mi = timeinfo.tm_min;
-      int se = timeinfo.tm_sec;
+      currentHour  = timeinfo.tm_hour;
+      currentMin   = timeinfo.tm_min;
+      currentSec   = timeinfo.tm_sec;
+
+      sendLogReset();                                               // manda o log uma vez
 
       char RTC_Time[64];                                            //Cria uma string formatada da estrutura "timeinfo"
-      sprintf(RTC_Time, "%02d.%02d.%04d  -  %02d:%02d:%02d", da, mo, ye, ho, mi, se);
+      sprintf(RTC_Time, "%02d.%02d.%04d  -  %02d:%02d:%02d", currentDay, currentMonth, currentYear, currentHour, currentMin, currentSec);
       Serial.print("Data/hora do sistema:  ");
       Serial.println(RTC_Time);
       Blynk.virtualWrite(V1, RTC_Time);                             // envia ao Blynk a informação de data, hora e minuto do RTC
     
-      int temp=((temprature_sens_read() - 32) / 1.8)-31;            // -7 Viamão,   -31 Restinga Seca 
+      int temp=((temprature_sens_read() - 32) / 1.8)-31;             // -7 Viamão,   -31 Restinga Seca 
       Serial.print("Temperatura: ");
       Serial.print(temp);
       Serial.println(" C");
       Blynk.virtualWrite(V2, temp);
-    
     }
+}
+
+void sendLogReset(){
+  // envia razao do reset para o servidor
+  if ((servicoIoTState==4) && (sendBlynk)){
+    Serial.print("Servidor IoT Blynk conectado e rodando com sucesso!");
+    esp_reset_reason_t r = esp_reset_reason();
+    Serial.printf("\r\nReset reason %i - %s\r\n", r, resetReasonName(r));
+    Blynk.virtualWrite(V45, currentDay, "/", currentMonth, " ", currentHour, ":", currentMin, "",resetReasonName(r), " ",counterRST);
+    sendBlynk = false;
+    delay(3000);                   // delay para verificar no monitor serial
+  }
 }
 
 void setup(){
@@ -130,10 +211,26 @@ void setup(){
   Serial.begin(115200);
   delay(100);
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);   // inicia e busca as infos de data e hora (NTP)
-  edgentTimer.setInterval(1000L, Main2);                      // rotina se repete a cada XXXXL (milisegundos)
+  PrintResetReason();                     // imiprime a razão do último reset
+
+  // ------   Inicia e cria espaco na memoria NVS - namespace:my-app    ------
+  preferences.begin("my-app", false);   // Note: Namespace name is limited to 15 chars.
+  //preferences.clear();                // remove all preferences under the opened namespace
+  //preferences.remove("counterRST");   // or remove the counter key only
+  counterRST = preferences.getUInt("counterRST", 0); // Le da NVS, se counterRST nao existir retorna o valor 0
+  counterRST++;                         // incrementa a cada restart
+  //Serial.printf("Quantidade de RESETs: %u\n", counterRST);
+  preferences.putUInt("counterRST", counterRST);  // grava em Preferences/My-app/counterRST, counterRST
+  preferences.end();
+  delay(50);
+  Serial.printf("Quantidade de RESETs: %u\n", counterRST);
+  sendBlynk = true;
+
+  edgentTimer.setInterval(1000L, Main2);  // rotina se repete a cada XXXXL (milisegundos)
   BlynkEdgent.begin();
+  
 }
 
 void loop(){
-  BlynkEdgent.run();
+  BlynkEdgent.run(); 
 }
