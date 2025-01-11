@@ -62,8 +62,10 @@ void Main2(){
 
   long rssi = WiFi.RSSI();
   Serial.print("RF Signal Level: ");
-  Serial.println(rssi);                         // Escreve o indicador de nível de sinal Wi-Fi
-  Blynk.virtualWrite(V3, rssi);                // Envia ao Blynk informação RF Signal Level
+  Serial.println(rssi);                           // Escreve o indicador de nível de sinal Wi-Fi
+  Blynk.virtualWrite(V3, rssi);                   // Envia ao Blynk informação RF Signal Level
+
+  Serial.println("------------------------------------------------------");  
 }
 
 void sensorNivel() {  
@@ -108,7 +110,7 @@ void NTPserverTime(){          // Horário recebido da internet
       Serial.println(RTC_Time);
       Blynk.virtualWrite(V1, RTC_Time);                             // envia ao Blynk a informação de data, hora e minuto do RTC
     
-      int temp=((temprature_sens_read() - 32) / 1.8)-31;
+      int temp=((temprature_sens_read() - 32) / 1.8)-7;            // -7 Viamão,   -31 Restinga Seca 
       Serial.print("Temperatura: ");
       Serial.print(temp);
       Serial.println(" C");
