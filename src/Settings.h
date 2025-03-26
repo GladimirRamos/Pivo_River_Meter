@@ -63,7 +63,7 @@
 
 #else
 
-  #warning "Custom board configuration is used"
+  //#warning "Custom board configuration is used"
 
   #define BOARD_BUTTON_PIN            0                     // Pin where user button is attached
   #define BOARD_BUTTON_ACTIVE_LOW     true                  // true if button is "active-low"

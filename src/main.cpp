@@ -16,8 +16,8 @@
 
 //#define BLYNK_TEMPLATE_ID "TMPL2Yf6rOHsV"
 //#define BLYNK_TEMPLATE_NAME "Pivo Teste"
-#define BLYNK_TEMPLATE_ID "TMPLaM1hhk7O"
-#define BLYNK_TEMPLATE_NAME "Pivo"
+#define BLYNK_TEMPLATE_ID             "TMPLaM1hhk7O"
+#define BLYNK_TEMPLATE_NAME           "Pivo"
 #define BLYNK_FIRMWARE_VERSION        "0.1.3"
 
 //#define BLYNK_PRINT Serial
@@ -33,6 +33,8 @@ int currentDay;
 int currentMonth;
 int currentYear;
 
+int var = 0;
+
 Preferences  preferences;                      // biblioteca para armazenamento de dados
 unsigned int  counterRST;                      // contador de reset's
 uint32_t servicoIoTState;                      // recebe a informação de BlynkState::get();
@@ -41,7 +43,7 @@ bool    sendBlynk = true;                      // usado como flag para envio ao 
 
 // ----------------------------------- SETUP Watchdog ------------------------------------------
 #include "soc/rtc_wdt.h"
-#define WDT_TIMEOUT   120000                      // XXX miliseconds WDT
+#define  WDT_TIMEOUT        120000                          // XXX miliseconds WDT
 
 // Converte razões do reset para string
 const char *resetReasonName(esp_reset_reason_t r) {
@@ -92,15 +94,17 @@ uint8_t temprature_sens_read();
 void sensorNivel(void);
 void NTPserverTime(void);
 void sendLogReset(void);
+void colorLED(void);
 
 void Main2(){
+  unsigned long tempo_start = millis();      // usado no final para imprimir o tempo de execução dessa rotina
 
     // habilitar para teste de Sofware Reboot ou RTC Watchdog
   //if (currentSec == 59){ESP.restart();}
   //if (currentSec == 59){int i = WDT_TIMEOUT/1000;
   //   while(1){Serial.print("Watchdog vai atuar em... "); Serial.println (i);delay(980);i = i - 1;}}
   
-  if ((currentHour == 5) && (currentMin == 0) && (currentSec == 0)){
+  if ((currentHour == 6) && (currentMin == 0) && (currentSec < 2)){
     preferences.begin  ("my-app", false);              // inicia 
     preferences.putUInt("counterRST", 0);              // grava em Preferences/My-app/counterRST, counterRST
     counterRST = preferences.getUInt("counterRST", 0); // Le da NVS
@@ -133,6 +137,8 @@ servicoIoTState = BlynkState::get();    // requisita estado da biblioteca BlynkE
   Serial.println(rssi);                           // Escreve o indicador de nível de sinal Wi-Fi
   Blynk.virtualWrite(V3, rssi);                   // Envia ao Blynk informação RF Signal Level
 
+
+  Serial.printf("Período (ms) do Main2: %u\n", (millis() - tempo_start)); // cálculo do tempu utilizado até aqui
   Serial.println("------------------------------------------------------");  
 }
 
@@ -180,7 +186,7 @@ void NTPserverTime(){          // Horário recebido da internet
       Serial.println(RTC_Time);
       Blynk.virtualWrite(V1, RTC_Time);                             // envia ao Blynk a informação de data, hora e minuto do RTC
     
-      int temp=((temprature_sens_read() - 32) / 1.8)-31;             // -7 Viamão,   -31 Restinga Seca 
+      int temp=((temprature_sens_read() - 32) / 1.8)-7;             // -7 Viamão,   -31 Restinga Seca 
       Serial.print("Temperatura: ");
       Serial.print(temp);
       Serial.println(" C");
@@ -191,11 +197,18 @@ void NTPserverTime(){          // Horário recebido da internet
 void sendLogReset(){
   // envia razao do reset para o servidor
   if ((servicoIoTState==4) && (sendBlynk)){
-    Serial.print("Servidor IoT Blynk conectado e rodando com sucesso!");
+    Serial.print("               BLYNK:  RODANDO COM SUCESSO!"); // delay(100);
     esp_reset_reason_t r = esp_reset_reason();
     Serial.printf("\r\nReset reason %i - %s\r\n", r, resetReasonName(r));
-    delay(1000);                   // delay para verificar no monitor serial
     Blynk.virtualWrite(V45, currentDay, "/", currentMonth, " ", currentHour, ":", currentMin, "",resetReasonName(r), " ",counterRST);
+    Blynk.virtualWrite(V53, counterRST);                        // envia para tela do app
+    Blynk.syncVirtual (V40, V69, V89);                          // sincroniza datastream de agendamentos
+    delay(500);
+    // se reiniciar por (1) POWER ON RESET
+    if (r == 1){
+      //Blynk.logEvent("falha_de_energia", String("Teste - Falha de Energia!"));
+      Blynk.logEvent("falha_de_energia");                 // registra o evento falha_de_energia no servidor
+      }
     sendBlynk = false;
   }
 }
@@ -226,9 +239,40 @@ void setup(){
   Serial.printf("Quantidade de RESETs: %u\n", counterRST);
   sendBlynk = true;
 
-  edgentTimer.setInterval(1000L, Main2);  // rotina se repete a cada XXXXL (milisegundos)
+  edgentTimer.setInterval(1000L, Main2);     // rotina se repete a cada XXXXL (milisegundos)
+  edgentTimer.setInterval(1000L, colorLED);  // rotina se repete a cada XXXXL (milisegundos)
   BlynkEdgent.begin();
   
+}
+
+// Rotina de testes para troca de cores dos Widget's
+void colorLED(void){
+  var = var + 1;
+  if (var >0 && var<2) {
+    //#define BLYNK_GREEN     "#23C48E"
+    Blynk.setProperty(V10, "color", "#00FF6E"); // verde
+    Blynk.setProperty(V11, "color", "#FF0000"); // vermelho
+  } 
+  
+  if (var >2 && var<4) {
+    //#define BLYNK_BLUE      "#04C0F8"
+    Blynk.setProperty(V10, "color", "#2865F4"); // azul
+    Blynk.setProperty(V11, "color", "#F7CB46"); // laranja
+  } 
+  
+  if (var >4 && var<6) {
+    //#define BLYNK_YELLOW    "#ED9D00"
+    Blynk.setProperty(V10, "color", "#F7CB46"); // laranja
+    Blynk.setProperty(V11, "color", "#2865F4"); // azul
+  } 
+
+  if (var >6 && var<8) {
+    //#define BLYNK_RED       "#D3435C"
+    Blynk.setProperty(V10, "color", "#FF0000"); // vermelho
+    Blynk.setProperty(V11, "color", "#00FF6E"); // verde
+  } 
+
+  if (var >= 8) {var = 0;}
 }
 
 void loop(){
