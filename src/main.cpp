@@ -14,17 +14,20 @@
  *************************************************************/
 #include "time.h" 
 
-//#define BLYNK_TEMPLATE_ID "TMPL2Yf6rOHsV"
-//#define BLYNK_TEMPLATE_NAME "Pivo Teste"
+//#define BLYNK_TEMPLATE_ID           "TMPL2z_jxo6v0"
+//#define BLYNK_TEMPLATE_NAME         "Artesiano"
+
 #define BLYNK_TEMPLATE_ID             "TMPLaM1hhk7O"
 #define BLYNK_TEMPLATE_NAME           "Pivo"
-#define BLYNK_FIRMWARE_VERSION        "0.1.3"
+
+#define BLYNK_FIRMWARE_VERSION        "0.1.4"
 
 //#define BLYNK_PRINT Serial
 //#define APP_DEBUG
 // #define USE_ESP32_DEV_MODULE
 // #define a custom board in Settings.h (LED no pino GPIO 2)
 #include "BlynkEdgent.h"
+#include "uptime_formatter.h"
 
 int currentSec;
 int currentMin;
@@ -69,9 +72,6 @@ void PrintResetReason(void) {
 }
 // ----------------------------------- Fim Watchdog ----------------------------------------
 
-//const int IN3 = 33;         // sensor de niveis digital
-//const int IN4 = 25;
-//const int IN5 = 26;     
 const int nivelSensor = 34;   // sensor de nivel analógico
 int nivel = 0; 
 
@@ -94,17 +94,15 @@ uint8_t temprature_sens_read();
 void sensorNivel(void);
 void NTPserverTime(void);
 void sendLogReset(void);
-void colorLED(void);
 
 void Main2(){
   unsigned long tempo_start = millis();      // usado no final para imprimir o tempo de execução dessa rotina
-
     // habilitar para teste de Sofware Reboot ou RTC Watchdog
   //if (currentSec == 59){ESP.restart();}
   //if (currentSec == 59){int i = WDT_TIMEOUT/1000;
   //   while(1){Serial.print("Watchdog vai atuar em... "); Serial.println (i);delay(980);i = i - 1;}}
   
-  if ((currentHour == 6) && (currentMin == 0) && (currentSec < 2)){
+  if ((currentHour == 6) && (currentMin == 10) && (currentSec < 1)){
     preferences.begin  ("my-app", false);              // inicia 
     preferences.putUInt("counterRST", 0);              // grava em Preferences/My-app/counterRST, counterRST
     counterRST = preferences.getUInt("counterRST", 0); // Le da NVS
@@ -134,22 +132,15 @@ servicoIoTState = BlynkState::get();    // requisita estado da biblioteca BlynkE
   // ------ Coleta e envio do nivel de RF ------
   long rssi = WiFi.RSSI();
   Serial.print("RF Signal Level: ");
-  Serial.println(rssi);                           // Escreve o indicador de nível de sinal Wi-Fi
-  Blynk.virtualWrite(V3, rssi);                   // Envia ao Blynk informação RF Signal Level
-
+  Serial.println(rssi);                                                  // imprime o indicador de nível de sinal Wi-Fi
+  Blynk.virtualWrite(V3, rssi);                                          // envia ao Blynk informação RF Signal Level
+  Blynk.virtualWrite(V10, uptime_formatter::getUptime());                // envia ao Blynk a informação uptime
 
   Serial.printf("Período (ms) do Main2: %u\n", (millis() - tempo_start)); // cálculo do tempu utilizado até aqui
   Serial.println("------------------------------------------------------");  
 }
 
 void sensorNivel() {  
-    //   rotina para uso de sensores digitais
-    //int A; int B; int C;
-    //if (digitalRead(IN3) == HIGH) {A = 33;} else {A = 0;}        
-    //if (digitalRead(IN4) == HIGH) {B = 33;} else {B = 0;}        
-    //if (digitalRead(IN5) == HIGH) {C = 34;} else {C = 0;}
-    //int nivel = A + B + C; 
-
     //   rotina para uso de sensor de nivel analógico
     nivel = analogRead (nivelSensor);
     nivel = map(nivel, 912, 3648, 100, 0);        // comentar essa linha para calibrar (ADC vai de 0 a 4095)
@@ -186,7 +177,7 @@ void NTPserverTime(){          // Horário recebido da internet
       Serial.println(RTC_Time);
       Blynk.virtualWrite(V1, RTC_Time);                             // envia ao Blynk a informação de data, hora e minuto do RTC
     
-      int temp=((temprature_sens_read() - 32) / 1.8)-7;             // -7 Viamão,   -31 Restinga Seca 
+      int temp=((temprature_sens_read() - 32) / 1.8)-12;             // -7 Viamão,   -31 Restinga Seca 
       Serial.print("Temperatura: ");
       Serial.print(temp);
       Serial.println(" C");
@@ -202,7 +193,6 @@ void sendLogReset(){
     Serial.printf("\r\nReset reason %i - %s\r\n", r, resetReasonName(r));
     Blynk.virtualWrite(V45, currentDay, "/", currentMonth, " ", currentHour, ":", currentMin, "",resetReasonName(r), " ",counterRST);
     Blynk.virtualWrite(V53, counterRST);                        // envia para tela do app
-    Blynk.syncVirtual (V40, V69, V89);                          // sincroniza datastream de agendamentos
     delay(500);
     // se reiniciar por (1) POWER ON RESET
     if (r == 1){
@@ -240,39 +230,7 @@ void setup(){
   sendBlynk = true;
 
   edgentTimer.setInterval(1000L, Main2);     // rotina se repete a cada XXXXL (milisegundos)
-  edgentTimer.setInterval(1000L, colorLED);  // rotina se repete a cada XXXXL (milisegundos)
   BlynkEdgent.begin();
-  
-}
-
-// Rotina de testes para troca de cores dos Widget's
-void colorLED(void){
-  var = var + 1;
-  if (var >0 && var<2) {
-    //#define BLYNK_GREEN     "#23C48E"
-    Blynk.setProperty(V10, "color", "#00FF6E"); // verde
-    Blynk.setProperty(V11, "color", "#FF0000"); // vermelho
-  } 
-  
-  if (var >2 && var<4) {
-    //#define BLYNK_BLUE      "#04C0F8"
-    Blynk.setProperty(V10, "color", "#2865F4"); // azul
-    Blynk.setProperty(V11, "color", "#F7CB46"); // laranja
-  } 
-  
-  if (var >4 && var<6) {
-    //#define BLYNK_YELLOW    "#ED9D00"
-    Blynk.setProperty(V10, "color", "#F7CB46"); // laranja
-    Blynk.setProperty(V11, "color", "#2865F4"); // azul
-  } 
-
-  if (var >6 && var<8) {
-    //#define BLYNK_RED       "#D3435C"
-    Blynk.setProperty(V10, "color", "#FF0000"); // vermelho
-    Blynk.setProperty(V11, "color", "#00FF6E"); // verde
-  } 
-
-  if (var >= 8) {var = 0;}
 }
 
 void loop(){
